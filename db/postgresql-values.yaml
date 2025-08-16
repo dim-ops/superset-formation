@@ -1,0 +1,26 @@
+# Configuration PostgreSQL
+auth:
+  postgresPassword: "postgres123"
+  username: "superset_user"
+  password: "superset123"
+  database: "superset_db"
+
+primary:
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: ""
+
+service:
+  type: ClusterIP
+  ports:
+    postgresql: 5432
+
+# Métriques (optionnel)
+metrics:
+  enabled: false
+
+# Configuration avancée
+postgresql:
+  replicationUser: replicator
+  replicationPassword: replicator123
