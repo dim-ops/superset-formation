@@ -1,0 +1,167 @@
+superset:
+  # Configuration Superset avec image personnalisée
+  image:
+    repository: superset-custom
+    tag: 4.0.0
+    pullPolicy: IfNotPresent
+
+  # Configuration du service pour Minikube
+  service:
+    type: NodePort
+    port: 8088
+    nodePort:
+      http: 30088
+    annotations: {}
+
+  # Configuration des réplicas
+  replicaCount: 1
+
+  # Variables d'environnement
+  # envFromSecret: superset-env-secret  # Commenté car le secret n'existe pas
+  envFromSecrets: []
+
+  # Configuration de la base de données interne
+  postgresql:
+    enabled: true  # PostgreSQL intégré pour Superset
+    auth:
+      postgresPassword: "superset123"
+      username: "superset"
+      password: "superset123"
+      database: "superset"
+    primary:
+      persistence:
+        enabled: true
+        size: 8Gi
+
+  # Configuration de l'initialisation avec drivers
+  init:
+    adminUser:
+      username: admin
+      firstname: Admin
+      lastname: User
+      email: admin@superset.com
+      password: admin
+    createAdmin: true
+
+  # Ressources
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 500m
+      memory: 512Mi
+
+  # Configuration personnalisée
+  configOverrides:
+    superset_config.py: |
+      import os
+      import sys
+      import oracledb
+      oracledb.version = "8.3.0"
+      sys.modules["cx_Oracle"] = oracledb
+      import cx_Oracle
+
+      # Configuration de base
+      SECRET_KEY = os.environ.get('SUPERSET_SECRET_KEY', 'your-secret-key-change-in-production')
+
+      # Configuration de la base de données Superset (PostgreSQL intégré)
+      SQLALCHEMY_DATABASE_URI = 'postgresql://superset:${SUPERSET_DB_PASSWORD}@superset-postgresql:5432/superset'
+
+      # Configuration des drivers de base de données
+      SQLALCHEMY_TRACK_MODIFICATIONS = False
+
+      # Configuration Redis pour le cache (si activé)
+      CACHE_CONFIG = {
+          'CACHE_TYPE': 'RedisCache',
+          'CACHE_DEFAULT_TIMEOUT': 300,
+          'CACHE_KEY_PREFIX': 'superset_',
+          'CACHE_REDIS_HOST': 'superset-redis-headless',
+          'CACHE_REDIS_PORT': 6379,
+          'CACHE_REDIS_DB': 1,
+          'CACHE_REDIS_URL': 'redis://superset-redis-headless:6379/1'
+      }
+
+      # Configuration Celery
+      CELERY_CONFIG = {
+          'broker_url': 'redis://superset-redis-headless:6379/0',
+          'imports': ['superset.sql_lab'],
+          'result_backend': 'redis://superset-redis-headless:6379/0',
+          'worker_prefetch_multiplier': 10,
+          'task_acks_late': True,
+      }
+
+  # Configuration du secret pour les variables d'environnement
+  extraSecretEnv:
+    SUPERSET_SECRET_KEY: your-secret-key-change-in-production
+
+  extraEnv:
+    secretMappings:
+      DB_POSTGRESQL_PASSWORD:
+        name: databases-connections
+        keyName: DB_POSTGRESQL_PASSWORD
+      DB_ORACLE_PASSWORD:
+        name: databases-connections
+        keyName: DB_ORACLE_PASSWORD
+      DB_SQL_SERVER_PASSWORD:
+        name: databases-connections
+        keyName: DB_SQL_SERVER_PASSWORD
+      DB_POSTGRESQL_ENDPOINT:
+        name: databases-connections
+        keyName: DB_POSTGRESQL_ENDPOINT
+      DB_ORACLE_ENDPOINT:
+        name: databases-connections
+        keyName: DB_ORACLE_ENDPOINT
+      DB_SQL_SERVER_ENDPOINT:
+        name: databases-connections
+        keyName: DB_SQL_SERVER_ENDPOINT
+
+  # Configuration Ingress (désactivé par défaut)
+  ingress:
+    enabled: false
+
+  extraConfigs:
+    import_datasources.yaml: |
+      databases:
+      - database_name: "Production SQL Server"
+        sqlalchemy_uri: "mssql+pymssql://sa:${DB_SQL_SERVER_PASSWORD}@${DB_SQL_SERVER_ENDPOINT}:1433"
+        allow_file_upload: true
+        allow_ctas: true
+        allow_cvas: true
+        allow_run_async: true
+        expose_in_sqllab: true
+        tables: []
+
+      - database_name: "PostgreSQL Analytics"
+        sqlalchemy_uri: "postgresql://superset_user:${DB_POSTGRESQL_PASSWORD}@${DB_POSTGRESQL_ENDPOINT}:5432/superset_db"
+        allow_file_upload: true
+        allow_ctas: true
+        allow_cvas: true
+        allow_run_async: true
+        expose_in_sqllab: true
+        tables: []
+
+      - database_name: "Oracle Analytics"
+        sqlalchemy_uri: "oracle+cx_oracle://admin:${DB_ORACLE_PASSWORD}@${DB_ORACLE_ENDPOINT}:1521/?service_name=ORCL"
+        allow_file_upload: true
+        allow_ctas: true
+        allow_cvas: true
+        allow_run_async: true
+        expose_in_sqllab: true
+        tables: []
+
+
+global:
+  servers:
+    connections:
+      - serverName: "oracle"
+      - serverName: "postgresql"
+      - serverName: "sqlserver"
+    defaults:
+      hostTemplate: "{{ .serverName }}"
+      credentialsSecretStoreKeyTemplate: "platform/databases/{{ .serverName }}/ro-{{ .serverName }}"
+    credentialsExternalSecret:
+      refreshInterval: 5m
+      secretStoreRef:
+        name: "secrets-sync-vault"
+        kind: "ClusterSecretStore"

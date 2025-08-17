@@ -1,4 +1,4 @@
-FROM apache/superset:3.0.0
+FROM apache/superset:4.0.0
 
 USER root
 
@@ -8,6 +8,6 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Installation des drivers comme indiqué dans la doc Superset
-RUN pip install --no-cache-dir cx_Oracle pymssql
+RUN pip install --no-cache-dir oracledb pymssql
 
 USER superset
