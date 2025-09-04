@@ -1,0 +1,60 @@
+customLdifFiles:
+  00-root.ldif: |-
+    # Root creation
+    dn: dc=example,dc=org
+    objectClass: dcObject
+    objectClass: organization
+    o: Example, Inc
+
+  01-groups-ou.ldif: |-
+    # OU pour les groupes
+    dn: ou=groups,dc=example,dc=org
+    objectClass: organizationalUnit
+    ou: groups
+
+  02-superset-groups.ldif: |-
+    # Groupe superset_users
+    dn: cn=superset_users,ou=groups,dc=example,dc=org
+    cn: superset_users
+    gidnumber: 500
+    objectclass: posixGroup
+    objectclass: top
+    memberUid: jdupond
+    memberUid: user2
+
+    # Groupe superset_admins
+    dn: cn=superset_admins,ou=groups,dc=example,dc=org
+    cn: superset_admins
+    gidnumber: 501
+    objectclass: posixGroup
+    objectclass: top
+    memberUid: admin1
+
+  03-users.ldif: |-
+    # Utilisateur existant Jean Dupond
+    dn: cn=Jean Dupond,dc=example,dc=org
+    cn: Jean Dupond
+    gidnumber: 500
+    givenname: Jean
+    homedirectory: /home/users/jdupond
+    objectclass: inetOrgPerson
+    objectclass: posixAccount
+    objectclass: top
+    sn: Dupond
+    uid: jdupond
+    uidnumber: 1000
+    userpassword: password
+
+    # Admin pour superset_admins
+    dn: cn=admin1,dc=example,dc=org
+    cn: admin1
+    gidnumber: 501
+    givenname: Admin
+    homedirectory: /home/users/admin1
+    objectclass: inetOrgPerson
+    objectclass: posixAccount
+    objectclass: top
+    sn: Admin
+    uid: admin1
+    uidnumber: 1001
+    userpassword: password

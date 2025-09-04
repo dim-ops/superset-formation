@@ -1,0 +1,3 @@
+# Database drivers pour Apache Superset
+oracledb==2.4.1
+pymssql==2.3.1
