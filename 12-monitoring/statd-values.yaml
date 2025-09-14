@@ -1,0 +1,73 @@
+# statsd-exporter-values.yaml - VERSION SIMPLIFIÉE
+replicaCount: 1
+
+image:
+  repository: prom/statsd-exporter
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 9102
+  statsdPort: 9125
+  annotations:
+    # Annotations pour découverte Prometheus vanilla
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9102"
+    prometheus.io/path: "/metrics"
+
+# SUPPRIMEZ LA SECTION serviceMonitor !
+# Elle n'est pas supportée sans l'operator
+
+# Configuration du mapping StatsD
+statsd:
+  mappingConfig: |
+    mappings:
+      - match: "superset.*.requests"
+        name: "superset_requests_total"
+        labels:
+          service: "$1"
+          namespace: "superset"
+      - match: "superset.*.response_time"
+        name: "superset_response_time_seconds"
+        labels:
+          service: "$1"
+          namespace: "superset"
+      - match: "superset.dashboard.*"
+        name: "superset_dashboard_operations"
+        labels:
+          operation: "$1"
+      - match: "superset.query.*"
+        name: "superset_query_operations"
+        labels:
+          operation: "$1"
+      - match: "superset.validation.*"
+        name: "superset_validation_metrics"
+        labels:
+          test: "$1"
+
+resources:
+  limits:
+    cpu: 100m
+    memory: 128Mi
+  requests:
+    cpu: 50m
+    memory: 64Mi
+
+livenessProbe:
+  httpGet:
+    path: /metrics
+    port: http
+  initialDelaySeconds: 30
+  periodSeconds: 10
+
+readinessProbe:
+  httpGet:
+    path: /metrics
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 5
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

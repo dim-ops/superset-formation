@@ -14,7 +14,8 @@ RUN apt-get update && apt-get install -y \
 RUN pip install --no-cache-dir \
     oracledb==${ORACLEDB_VERSION} \
     pymssql==${PYMSSQL_VERSION} \
-    python-ldap
+    python-ldap \
+    statsd
 
 WORKDIR /app
 COPY custom_security_manager.py .

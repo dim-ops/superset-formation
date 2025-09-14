@@ -64,6 +64,22 @@ configOverrides:
     from flask_appbuilder.security.manager import AUTH_DB,AUTH_LDAP
     from custom_security_manager import CustomSecurityManager
 
+    import os
+
+    # Configuration StatsD
+    STATS_LOGGER = 'statsd'
+    STATSD_HOST = 'statsd-exporter-prometheus-statsd-exporter.monitoring.svc.cluster.local'
+    STATSD_PORT = 9125
+    STATSD_PREFIX = 'superset'
+
+    # Configuration de base Superset
+    SECRET_KEY = os.environ.get('SECRET_KEY', 'your-secret-key')
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL')
+
+    # Activer les métriques
+    from superset.stats_logger import StatsdStatsLogger
+    STATS_LOGGER_CLASS = StatsdStatsLogger
+
     AUTH_TYPE = AUTH_LDAP
     AUTH_LDAP_SERVER = "ldap://openldap.ldap.svc.cluster.local:389"
     AUTH_LDAP_USE_TLS = False
