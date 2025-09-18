@@ -1,0 +1,191 @@
+image:
+  repository: dimproject/superset-learning
+  tag: args
+  pullPolicy: IfNotPresent
+
+# Configuration du service pour Minikube
+service:
+  type: NodePort
+  port: 8088
+  nodePort:
+    http: 30088
+  annotations: {}
+
+# Configuration des réplicas
+replicaCount: 1
+
+# Variables d'environnement
+# envFromSecret: superset-env-secret  # Commenté car le secret n'existe pas
+envFromSecrets: []
+
+# Configuration de la base de données interne
+postgresql:
+  enabled: true  # PostgreSQL intégré pour Superset
+  auth:
+    postgresPassword: "superset123"
+    username: "superset"
+    password: "superset123"
+    database: "superset"
+  primary:
+    persistence:
+      enabled: true
+      size: 8Gi
+
+# Configuration de l'initialisation avec drivers
+init:
+  adminUser:
+    username: admin
+    firstname: Admin
+    lastname: User
+    email: admin@superset.com
+    password: admin
+  createAdmin: true
+  initContainers:
+    - name: wait-for-postgres
+      image: "{{ .Values.initImage.repository }}:{{ .Values.initImage.tag }}"
+      imagePullPolicy: "{{ .Values.initImage.pullPolicy }}"
+      envFrom:
+        - secretRef:
+            name: "{{ tpl .Values.envFromSecret . }}"
+      command:
+        - /bin/sh
+        - -c
+        - dockerize -wait "tcp://$DB_HOST:$DB_PORT" -timeout 120s
+    - name: config-substitution
+      image: alpine:latest
+      command: ['/bin/sh', '-c']
+      args:
+        - |
+          apk add --no-cache gettext
+          envsubst < /tmp/template/import_datasources.yaml > /tmp/output/import_datasources.yaml
+      env:
+        - name: SQLSERVER_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: sqlserver-credentials
+              key: username
+        - name: SQLSERVER_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: sqlserver-credentials
+              key: password
+        - name: POSTGRESQL_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-credentials
+              key: username
+        - name: POSTGRESQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-credentials
+              key: password
+        - name: ORACLE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: oracle-credentials
+              key: username
+        - name: ORACLE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: oracle-credentials
+              key: password
+      volumeMounts:
+        - name: config-template
+          mountPath: /tmp/template
+        - name: config-output
+          mountPath: /tmp/output
+
+# Ressources
+resources:
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+  requests:
+    cpu: 500m
+    memory: 512Mi
+
+# Configuration personnalisée
+configOverrides:
+  superset_config.py: |
+    import os
+    import sys
+    import oracledb
+    oracledb.version = "8.3.0"
+    sys.modules["cx_Oracle"] = oracledb
+    import cx_Oracle
+
+    # Configuration de base
+    SECRET_KEY = os.environ.get('SUPERSET_SECRET_KEY', 'your-secret-key-change-in-production')
+
+    POSTGRESQL_SUPERSET_USERNAME = os.getenv('POSTGRESQL_SUPERSET_USERNAME', 'superset')
+    POSTGRESQL_SUPERSET_PASSWORD = os.getenv('POSTGRESQL_SUPERSET_PASSWORD', 'superset123')
+
+    # Configuration de la base de données Superset avec variables d'environnement
+    SQLALCHEMY_DATABASE_URI = f'postgresql://{POSTGRESQL_SUPERSET_USERNAME}:{POSTGRESQL_SUPERSET_PASSWORD}@superset-postgresql:5432/superset'
+
+# Configuration du secret pour les variables d'environnement
+extraSecretEnv:
+  SUPERSET_SECRET_KEY: your-secret-key-change-in-production
+
+# Configuration Ingress (désactivé par défaut)
+ingress:
+  enabled: false
+
+serviceAccount:
+  create: false
+  name: superset
+
+extraVolumes:
+  - name: config-template
+    configMap:
+      name: superset-datasource-template
+  - name: config-output
+    emptyDir: {}
+
+extraVolumeMounts:
+  - name: config-output
+    mountPath: /app/configs
+
+extraEnvRaw:
+  - name: SQLSERVER_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: sqlserver-credentials
+        key: username
+  - name: SQLSERVER_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: sqlserver-credentials
+        key: password
+  - name: POSTGRESQL_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: postgresql-credentials
+        key: username
+  - name: POSTGRESQL_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: postgresql-credentials
+        key: password
+  - name: ORACLE_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: oracle-credentials
+        key: username
+  - name: ORACLE_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: oracle-credentials
+        key: password
+  - name: POSTGRESQL_SUPERSET_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: postgresql-superset-credentials
+        key: username
+  - name: POSTGRESQL_SUPERSET_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: postgresql-superset-credentials
+        key: password
+
+extraConfigs: {}
