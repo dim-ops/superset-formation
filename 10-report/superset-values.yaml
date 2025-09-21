@@ -1,7 +1,7 @@
 # Configuration Superset avec image personnalisée
 image:
-  repository: superset-custom
-  tag: 5.0.0
+  repository: dimproject/superset-learning
+  tag: report
   pullPolicy: IfNotPresent
 
 # Configuration du service pour Minikube
@@ -124,101 +124,115 @@ configOverrides:
     oracledb.version = "8.3.0"
     sys.modules["cx_Oracle"] = oracledb
     import cx_Oracle
+    from superset.security import SupersetSecurityManager
+    from flask_appbuilder.security.manager import AUTH_DB,AUTH_LDAP
+    from custom_security_manager import CustomSecurityManager
     from celery.schedules import crontab
+
+    AUTH_TYPE = AUTH_LDAP
+    AUTH_LDAP_SERVER = "ldap://openldap.ldap.svc.cluster.local:389"
+    AUTH_LDAP_USE_TLS = False
+
+    # registration configs
+    AUTH_USER_REGISTRATION = True
+    AUTH_USER_REGISTRATION_ROLE = "Gamma"
+    AUTH_LDAP_FIRSTNAME_FIELD = "givenName"
+    AUTH_LDAP_LASTNAME_FIELD = "sn"
+    AUTH_LDAP_EMAIL_FIELD = "mail"
+
+    # search configs
+    AUTH_LDAP_SEARCH = "ou=users,dc=example,dc=org"
+    AUTH_LDAP_UID_FIELD = "uid"
+    AUTH_LDAP_BIND_USER = "cn=admin,dc=example,dc=org"
+    AUTH_LDAP_BIND_PASSWORD = "Not@SecurePassw0rd"
+
+    AUTH_ROLES_MAPPING = {
+      "superset_admin": ["Admin"],
+      "superset_user": ["Gamma", "Alpha"],
+    }
+
+    # Utilise l'attribut description au lieu de memberOf
+    AUTH_LDAP_GROUP_FIELD = "description"
+    AUTH_ROLES_SYNC_AT_LOGIN = True
+    PERMANENT_SESSION_LIFETIME = 1800
+
+    CUSTOM_SECURITY_MANAGER = CustomSecurityManager
 
     # Configuration de base
     SECRET_KEY = os.environ.get('SUPERSET_SECRET_KEY', 'your-secret-key-change-in-production')
 
-    # Configuration de la base de données Superset (PostgreSQL intégré)
-    SQLALCHEMY_DATABASE_URI = 'postgresql://superset:superset123@superset-postgresql:5432/superset'
+    POSTGRESQL_SUPERSET_USERNAME = os.getenv('POSTGRESQL_SUPERSET_USERNAME')
+    POSTGRESQL_SUPERSET_PASSWORD = os.getenv('POSTGRESQL_SUPERSET_PASSWORD')
 
-    # Configuration des drivers de base de données
-    SQLALCHEMY_TRACK_MODIFICATIONS = False
-
-    # Configuration Redis pour le cache (si activé)
-    CACHE_CONFIG = {
-        'CACHE_TYPE': 'RedisCache',
-        'CACHE_DEFAULT_TIMEOUT': 300,
-        'CACHE_KEY_PREFIX': 'superset_',
-        'CACHE_REDIS_HOST': 'superset-redis-headless',
-        'CACHE_REDIS_PORT': 6379,
-        'CACHE_REDIS_DB': 1,
-        'CACHE_REDIS_URL': 'redis://superset-redis-headless:6379/1'
-    }
-
-    # Configuration Celery
-    CELERY_CONFIG = {
-      'broker_url': 'redis://superset-redis-headless:6379/0',
-      'imports': ['superset.sql_lab', 'superset.tasks.scheduler'],
-      'result_backend': 'redis://superset-redis-headless:6379/0',
-      'worker_prefetch_multiplier': 1,
-      'task_acks_late': True,
-      'worker_pool': 'solo',  # Mode solo = pas de processus fork
-      'worker_concurrency': 1,  # 1 seule tâche à la fois
-      'task_soft_time_limit': 300,
-      'task_time_limit': 600,
-      'broker_connection_retry_on_startup': True,  # Fix pour le warning
-      'beat_schedule': {
-          "reports.scheduler": {
-            "task": "reports.scheduler",
-            "schedule": crontab(minute="*/10"),  # Toutes les 10 minutes
-          },
-          "reports.prune_log": {
-            "task": "reports.prune_log",
-            "schedule": crontab(minute=0, hour=2),
-          },
-      }
-    }
+    # Configuration de la base de données Superset avec variables d'environnement
+    SQLALCHEMY_DATABASE_URI = f'postgresql://{POSTGRESQL_SUPERSET_USERNAME}:{POSTGRESQL_SUPERSET_PASSWORD}@superset-postgresql:5432/superset'
 
     FEATURE_FLAGS = {
       "ALERT_REPORTS": True
     }
 
-    # Configuration optimisée pour les captures d'écran avec Chrome
-    SCREENSHOT_LOCATE_WAIT = 30
-    SCREENSHOT_LOAD_WAIT = 120
+    REDIS_HOST = "superset-redis-headless"
+    REDIS_PORT = "6379"
+
+    # Configuration Celery
+    class CeleryConfig:
+        broker_url = f"redis://{REDIS_HOST}:{REDIS_PORT}/0"
+        imports = (
+            "superset.sql_lab",
+            "superset.tasks.scheduler",
+        )
+        result_backend = f"redis://{REDIS_HOST}:{REDIS_PORT}/0"
+        worker_prefetch_multiplier = 10
+        task_acks_late = True
+        task_annotations = {
+            "sql_lab.get_sql_results": {
+                "rate_limit": "100/s",
+            },
+        }
+        beat_schedule = {
+            "reports.scheduler": {
+                "task": "reports.scheduler",
+                "schedule": crontab(minute="*/10"),
+            },
+            "reports.prune_log": {
+                "task": "reports.prune_log",
+                "schedule": crontab(minute=0, hour=2),
+            },
+        }
+    CELERY_CONFIG = CeleryConfig
+
+    ALERT_REPORTS_NOTIFICATION_DRY_RUN = False
+
+    SCREENSHOT_LOCATE_WAIT = 100
+    SCREENSHOT_LOAD_WAIT = 600
 
     # Configuration WebDriver pour Chrome (plus stable que Firefox)
     WEBDRIVER_TYPE = "chrome"
     WEBDRIVER_OPTION_ARGS = [
-        "--force-device-scale-factor=1",
-        "--high-dpi-support=1",
-        "--headless",
-        "--disable-gpu",
-        "--disable-dev-shm-usage",
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-extensions",
-        "--disable-background-timer-throttling",
-        "--disable-backgrounding-occluded-windows",
-        "--disable-renderer-backgrounding",
-        "--window-size=1280,720",
+      "--force-device-scale-factor=2.0",
+      "--high-dpi-support=2.0",
+      "--headless",
+      "--disable-gpu",
+      "--disable-dev-shm-usage",
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-extensions",
     ]
-
-    # Configuration pour éviter les timeouts
-    WEBDRIVER_WINDOW_SIZE = (1280, 720)
-    SCREENSHOT_SELENIUM_RETRIES = 3
-    SCREENSHOT_SELENIUM_HEADSTART = 3
 
     # Configuration Email
     SMTP_HOST = "email-smtp.us-east-1.amazonaws.com"
-    SMTP_PORT = 25
+    SMTP_PORT = 2587
     SMTP_STARTTLS = True
     SMTP_SSL_SERVER_AUTH = True
     SMTP_SSL = False
-    SMTP_USER = "AKIA5FTZEYBYCFCEQJVW"
-    SMTP_PASSWORD = "BKvgGPtbPxEzqYMHBm1Maeajf3GQfrTE/9pqdQ0xZvK3"
-    SMTP_MAIL_FROM = "report.superset@dimops.com"
+    SMTP_USER = ""
+    SMTP_PASSWORD = ""
+    SMTP_MAIL_FROM = ""
     EMAIL_REPORTS_SUBJECT_PREFIX = "[Superset] "
 
     # URLs
-    WEBDRIVER_BASEURL = "http://superset:8088"
-    WEBDRIVER_BASEURL_USER_FRIENDLY = "http://localhost:8088"
-
-    # Configuration supplémentaire pour éviter les problèmes de mémoire
-    SQLLAB_ASYNC_TIME_LIMIT_SEC = 300
-    SQLLAB_TIMEOUT = 300
-    SUPERSET_WEBSERVER_TIMEOUT = 300
+    WEBDRIVER_BASEURL = "http://superset.superset.svc.cluster.local:8088"
+    WEBDRIVER_BASEURL_USER_FRIENDLY = "http://superset.superset.svc.cluster.local:8088"
 
 # Configuration du secret pour les variables d'environnement
 extraSecretEnv:
@@ -274,13 +288,17 @@ extraEnvRaw:
       secretKeyRef:
         name: oracle-credentials
         key: password
+  - name: POSTGRESQL_SUPERSET_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: postgresql-superset-credentials
+        key: username
+  - name: POSTGRESQL_SUPERSET_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: postgresql-superset-credentials
+        key: password
 
 extraConfigs: {}
-
-extraEnv:
-  - name: CELERY_WORKER_MAX_MEMORY_PER_CHILD
-    value: "200000"  # 200MB
-  - name: CELERY_WORKER_PREFETCH_MULTIPLIER
-    value: "1"
 
 

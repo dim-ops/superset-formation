@@ -11,7 +11,7 @@ def get_superset_charts():
     Se connecte à Superset et récupère les charts avec affichage lisible
     """
     # Configuration
-    superset_host = 'localhost:30088'
+    superset_host = '51.68.16.250:30088'
     username = 'admin'
     password = 'admin'
 
@@ -140,3 +140,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    

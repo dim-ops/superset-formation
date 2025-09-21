@@ -263,8 +263,8 @@ persistence:
   # existingClaim: openldap-pvc
   accessModes:
     - ReadWriteOnce
-  size: 8Gi
-  storageClass: ""
+  size: 1Gi
+  storageClass: "csi-cinder-high-speed"
 
 ## @param customLivenessProbe Custom livenessProbe that overrides the default one
 ##

@@ -1,46 +1,47 @@
-FROM apache/superset:5.0.0
+FROM apache/superset:4.0.0
 
 ARG ORACLEDB_VERSION=3.3.0
 ARG PYMSSQL_VERSION=2.3.7
-
-WORKDIR /app
+ARG PYTHON_LDAP_VERSION=3.4.4
+ARG REDIS_VERSION=4.5.4
+ARG GEVENT_VERSION=25.9.1
+ARG PSYCOPG2_VERSION=2.9.10
 
 USER root
 
-# Installation des dépendances système (SANS Firefox)
 RUN apt-get update && apt-get install -y \
-    libaio1 \
     wget \
-    gnupg2 \
+    zip \
     unzip \
-    curl \
-    xvfb \
+    gnupg2 \
+    libaio1 \
+    libldap2-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Installation de Google Chrome UNIQUEMENT
-RUN wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add - \
-    && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list \
-    && apt-get update \
-    && apt-get install -y google-chrome-stable \
-    && rm -rf /var/lib/apt/lists/*
+RUN wget -q https://dl.google.com/linux/chrome/deb/pool/main/g/google-chrome-stable/google-chrome-stable_140.0.7339.185-1_amd64.deb && \
+    dpkg -i google-chrome-stable_140.0.7339.185-1_amd64.deb || apt-get install -fy && \
+    rm google-chrome-stable_140.0.7339.185-1_amd64.deb
 
-# Installation du ChromeDriver compatible
-RUN CHROMEDRIVER_VERSION=$(curl -sS https://googlechromelabs.github.io/chrome-for-testing/LATEST_RELEASE_STABLE) \
-    && wget -q "https://storage.googleapis.com/chrome-for-testing-public/${CHROMEDRIVER_VERSION}/linux64/chromedriver-linux64.zip" -O /tmp/chromedriver.zip \
-    && unzip /tmp/chromedriver.zip -d /tmp/ \
-    && mv /tmp/chromedriver-linux64/chromedriver /usr/local/bin/chromedriver \
-    && chmod +x /usr/local/bin/chromedriver \
-    && rm -rf /tmp/chromedriver*
+# Installation de ChromeDriver version compatible (140)
+RUN CHROMEDRIVER_VERSION="140.0.7339.185" && \
+    wget -q "https://storage.googleapis.com/chrome-for-testing-public/$CHROMEDRIVER_VERSION/linux64/chromedriver-linux64.zip" && \
+    unzip -j chromedriver-linux64.zip -d /usr/bin && \
+    chmod 755 /usr/bin/chromedriver && \
+    rm -f chromedriver-linux64.zip
 
 # Installation des packages Python
-RUN uv pip install --no-cache-dir \
+RUN pip install --no-cache-dir \
     oracledb==${ORACLEDB_VERSION} \
     pymssql==${PYMSSQL_VERSION} \
-    gevent \
-    psycopg2-binary \
-    redis \
-    Pillow \
-    selenium \
-    webdriver-manager
+    python-ldap==${PYTHON_LDAP_VERSION} \
+    gevent==${GEVENT_VERSION} \
+    psycopg2-binary==${PSYCOPG2_VERSION} \
+    redis==${REDIS_VERSION}
+
+WORKDIR /app
+COPY custom_security_manager.py .
+RUN touch __init__.py
+# for loading custom security manager
+ENV PYTHONPATH="${PYTHONPATH}:/app"
 
 USER superset

@@ -95,15 +95,6 @@ init:
         - name: config-output
           mountPath: /tmp/output
 
-# Ressources
-resources:
-  limits:
-    cpu: 1000m
-    memory: 1Gi
-  requests:
-    cpu: 500m
-    memory: 512Mi
-
 # Configuration personnalisée
 configOverrides:
   superset_config.py: |

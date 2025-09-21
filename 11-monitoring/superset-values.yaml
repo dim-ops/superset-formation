@@ -1,7 +1,7 @@
 # Configuration Superset avec image personnalisée
 image:
-  repository: superset-custom
-  tag: 5.0.0
+  repository: dimproject/superset-learning
+  tag: monitoring
   pullPolicy: IfNotPresent
 
 # Configuration du service pour Minikube
@@ -41,15 +41,79 @@ init:
     email: admin@superset.com
     password: admin
   createAdmin: true
+  initContainers:
+    - name: wait-for-postgres
+      image: "{{ .Values.initImage.repository }}:{{ .Values.initImage.tag }}"
+      imagePullPolicy: "{{ .Values.initImage.pullPolicy }}"
+      envFrom:
+        - secretRef:
+            name: "{{ tpl .Values.envFromSecret . }}"
+      command:
+        - /bin/sh
+        - -c
+        - dockerize -wait "tcp://$DB_HOST:$DB_PORT" -timeout 120s
+    - name: config-substitution
+      image: alpine:latest
+      command: ['/bin/sh', '-c']
+      args:
+        - |
+          apk add --no-cache gettext
+          envsubst < /tmp/template/import_datasources.yaml > /tmp/output/import_datasources.yaml
+      env:
+        - name: SQLSERVER_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: sqlserver-credentials
+              key: username
+        - name: SQLSERVER_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: sqlserver-credentials
+              key: password
+        - name: POSTGRESQL_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-credentials
+              key: username
+        - name: POSTGRESQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-credentials
+              key: password
+        - name: ORACLE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: oracle-credentials
+              key: username
+        - name: ORACLE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: oracle-credentials
+              key: password
+      volumeMounts:
+        - name: config-template
+          mountPath: /tmp/template
+        - name: config-output
+          mountPath: /tmp/output
 
-# Ressources
-resources:
-  limits:
-    cpu: 1000m
-    memory: 1Gi
-  requests:
-    cpu: 500m
-    memory: 512Mi
+supersetNode:
+  resources:
+    requests:
+     cpu: 200m
+     memory: 256Mi
+
+supersetWorker:
+  resources:
+    requests:
+     cpu: 200m
+     memory: 2Gi
+
+supersetCeleryBeat:
+  enabled: true
+  resources:
+    requests:
+     cpu: 200m
+     memory: 2Gi
 
 # Configuration personnalisée
 configOverrides:
@@ -63,21 +127,13 @@ configOverrides:
     from superset.security import SupersetSecurityManager
     from flask_appbuilder.security.manager import AUTH_DB,AUTH_LDAP
     from custom_security_manager import CustomSecurityManager
+    from celery.schedules import crontab
+    from superset.stats_logger import StatsdStatsLogger
 
-    import os
-
-    # Configuration StatsD
     STATS_LOGGER = 'statsd'
     STATSD_HOST = 'statsd-exporter-prometheus-statsd-exporter.monitoring.svc.cluster.local'
     STATSD_PORT = 9125
     STATSD_PREFIX = 'superset'
-
-    # Configuration de base Superset
-    SECRET_KEY = os.environ.get('SECRET_KEY', 'your-secret-key')
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL')
-
-    # Activer les métriques
-    from superset.stats_logger import StatsdStatsLogger
     STATS_LOGGER_CLASS = StatsdStatsLogger
 
     AUTH_TYPE = AUTH_LDAP
@@ -97,11 +153,9 @@ configOverrides:
     AUTH_LDAP_BIND_USER = "cn=admin,dc=example,dc=org"
     AUTH_LDAP_BIND_PASSWORD = "Not@SecurePassw0rd"
 
-    # Solution avec attribut personnalisé sur l'utilisateur
-    # Utilisez description ou title pour définir le rôle
     AUTH_ROLES_MAPPING = {
-        "superset_admin": ["Admin"],
-        "superset_user": ["Gamma", "Alpha"],
+      "superset_admin": ["Admin"],
+      "superset_user": ["Gamma", "Alpha"],
     }
 
     # Utilise l'attribut description au lieu de memberOf
@@ -111,35 +165,81 @@ configOverrides:
 
     CUSTOM_SECURITY_MANAGER = CustomSecurityManager
 
-
     # Configuration de base
     SECRET_KEY = os.environ.get('SUPERSET_SECRET_KEY', 'your-secret-key-change-in-production')
 
-    # Configuration de la base de données Superset (PostgreSQL intégré)
-    SQLALCHEMY_DATABASE_URI = 'postgresql://superset:superset123@superset-postgresql:5432/superset'
+    POSTGRESQL_SUPERSET_USERNAME = os.getenv('POSTGRESQL_SUPERSET_USERNAME')
+    POSTGRESQL_SUPERSET_PASSWORD = os.getenv('POSTGRESQL_SUPERSET_PASSWORD')
 
-    # Configuration des drivers de base de données
-    SQLALCHEMY_TRACK_MODIFICATIONS = False
+    # Configuration de la base de données Superset avec variables d'environnement
+    SQLALCHEMY_DATABASE_URI = f'postgresql://{POSTGRESQL_SUPERSET_USERNAME}:{POSTGRESQL_SUPERSET_PASSWORD}@superset-postgresql:5432/superset'
 
-    # Configuration Redis pour le cache (si activé)
-    CACHE_CONFIG = {
-        'CACHE_TYPE': 'RedisCache',
-        'CACHE_DEFAULT_TIMEOUT': 300,
-        'CACHE_KEY_PREFIX': 'superset_',
-        'CACHE_REDIS_HOST': 'superset-redis-headless',
-        'CACHE_REDIS_PORT': 6379,
-        'CACHE_REDIS_DB': 1,
-        'CACHE_REDIS_URL': 'redis://superset-redis-headless:6379/1'
+    FEATURE_FLAGS = {
+      "ALERT_REPORTS": True
     }
+
+    REDIS_HOST = "superset-redis-headless"
+    REDIS_PORT = "6379"
 
     # Configuration Celery
-    CELERY_CONFIG = {
-        'broker_url': 'redis://superset-redis-headless:6379/0',
-        'imports': ['superset.sql_lab'],
-        'result_backend': 'redis://superset-redis-headless:6379/0',
-        'worker_prefetch_multiplier': 10,
-        'task_acks_late': True,
-    }
+    class CeleryConfig:
+        broker_url = f"redis://{REDIS_HOST}:{REDIS_PORT}/0"
+        imports = (
+            "superset.sql_lab",
+            "superset.tasks.scheduler",
+        )
+        result_backend = f"redis://{REDIS_HOST}:{REDIS_PORT}/0"
+        worker_prefetch_multiplier = 10
+        task_acks_late = True
+        task_annotations = {
+            "sql_lab.get_sql_results": {
+                "rate_limit": "100/s",
+            },
+        }
+        beat_schedule = {
+            "reports.scheduler": {
+                "task": "reports.scheduler",
+                "schedule": crontab(minute="*/10"),
+            },
+            "reports.prune_log": {
+                "task": "reports.prune_log",
+                "schedule": crontab(minute=0, hour=2),
+            },
+        }
+    CELERY_CONFIG = CeleryConfig
+
+    ALERT_REPORTS_NOTIFICATION_DRY_RUN = False
+
+    SCREENSHOT_LOCATE_WAIT = 100
+    SCREENSHOT_LOAD_WAIT = 600
+
+    # Configuration WebDriver pour Chrome (plus stable que Firefox)
+    WEBDRIVER_TYPE = "chrome"
+    WEBDRIVER_OPTION_ARGS = [
+      "--force-device-scale-factor=2.0",
+      "--high-dpi-support=2.0",
+      "--headless",
+      "--disable-gpu",
+      "--disable-dev-shm-usage",
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-extensions",
+    ]
+
+    # Configuration Email
+    SMTP_HOST = "email-smtp.us-east-1.amazonaws.com"
+    SMTP_PORT = 2587
+    SMTP_STARTTLS = True
+    SMTP_SSL_SERVER_AUTH = True
+    SMTP_SSL = False
+    SMTP_USER = ""
+    SMTP_PASSWORD = ""
+    SMTP_MAIL_FROM = ""
+    EMAIL_REPORTS_SUBJECT_PREFIX = "[Superset] "
+
+    # URLs
+    WEBDRIVER_BASEURL = "http://superset.superset.svc.cluster.local:8088"
+    WEBDRIVER_BASEURL_USER_FRIENDLY = "http://superset.superset.svc.cluster.local:8088"
 
 # Configuration du secret pour les variables d'environnement
 extraSecretEnv:
@@ -149,32 +249,63 @@ extraSecretEnv:
 ingress:
   enabled: false
 
-extraConfigs:
-  import_datasources.yaml: |
-    databases:
-    - database_name: "Production SQL Server"
-      sqlalchemy_uri: "mssql+pymssql://sa:YourStrong!Passw0rd@sqlserver-service.default.svc.cluster.local:1433"
-      allow_file_upload: true
-      allow_ctas: true
-      allow_cvas: true
-      allow_run_async: true
-      expose_in_sqllab: true
-      tables: []
+serviceAccount:
+  create: false
+  name: superset
 
-    - database_name: "PostgreSQL Analytics"
-      sqlalchemy_uri: "postgresql://superset_user:superset123@postgresql.default.svc.cluster.local:5432/superset_db"
-      allow_file_upload: true
-      allow_ctas: true
-      allow_cvas: true
-      allow_run_async: true
-      expose_in_sqllab: true
-      tables: []
+extraVolumes:
+  - name: config-template
+    configMap:
+      name: superset-datasource-template
+  - name: config-output
+    emptyDir: {}
 
-    - database_name: "Oracle Analytics"
-      sqlalchemy_uri: "oracle+cx_oracle://admin:admindimops@database-1.c92oy2osmi5g.us-east-1.rds.amazonaws.com:1521/?service_name=ORCL"
-      allow_file_upload: true
-      allow_ctas: true
-      allow_cvas: true
-      allow_run_async: true
-      expose_in_sqllab: true
-      tables: []
+extraVolumeMounts:
+  - name: config-output
+    mountPath: /app/configs
+
+extraEnvRaw:
+  - name: SQLSERVER_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: sqlserver-credentials
+        key: username
+  - name: SQLSERVER_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: sqlserver-credentials
+        key: password
+  - name: POSTGRESQL_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: postgresql-credentials
+        key: username
+  - name: POSTGRESQL_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: postgresql-credentials
+        key: password
+  - name: ORACLE_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: oracle-credentials
+        key: username
+  - name: ORACLE_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: oracle-credentials
+        key: password
+  - name: POSTGRESQL_SUPERSET_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: postgresql-superset-credentials
+        key: username
+  - name: POSTGRESQL_SUPERSET_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: postgresql-superset-credentials
+        key: password
+
+extraConfigs: {}
+
+
