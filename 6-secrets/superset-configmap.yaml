@@ -7,7 +7,7 @@ data:
   import_datasources.yaml: |
     databases:
     - database_name: "Production SQL Server"
-      sqlalchemy_uri: "mssql+pymssql://\${SQLSERVER_USERNAME}:\${SQLSERVER_PASSWORD}@sqlserver-service.default.svc.cluster.local:1433"
+      sqlalchemy_uri: "mssql+pymssql://${SQLSERVER_USERNAME}:${SQLSERVER_PASSWORD}@sqlserver-service.default.svc.cluster.local:1433"
       allow_file_upload: true
       allow_ctas: true
       allow_cvas: true
@@ -15,7 +15,7 @@ data:
       expose_in_sqllab: true
       tables: []
     - database_name: "PostgreSQL Analytics"
-      sqlalchemy_uri: "postgresql://\${POSTGRESQL_USERNAME}:\${POSTGRESQL_PASSWORD}@postgresql.default.svc.cluster.local:5432/superset_db"
+      sqlalchemy_uri: "postgresql://${POSTGRESQL_USERNAME}:${POSTGRESQL_PASSWORD}@postgresql.default.svc.cluster.local:5432/superset_db"
       allow_file_upload: true
       allow_ctas: true
       allow_cvas: true
@@ -23,7 +23,7 @@ data:
       expose_in_sqllab: true
       tables: []
     - database_name: "Oracle Analytics"
-      sqlalchemy_uri: "oracle+cx_oracle://\${ORACLE_USERNAME}:\${ORACLE_PASSWORD}@database-1.c92oy2osmi5g.us-east-1.rds.amazonaws.com:1521/?service_name=ORCL"
+      sqlalchemy_uri: "oracle+cx_oracle://${ORACLE_USERNAME}:${ORACLE_PASSWORD}@database-1.c92oy2osmi5g.us-east-1.rds.amazonaws.com:1521/?service_name=ORCL"
       allow_file_upload: true
       allow_ctas: true
       allow_cvas: true

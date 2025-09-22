@@ -104,8 +104,8 @@ configOverrides:
     # Configuration de base
     SECRET_KEY = os.environ.get('SUPERSET_SECRET_KEY', 'your-secret-key-change-in-production')
 
-    POSTGRESQL_SUPERSET_USERNAME = os.getenv('POSTGRESQL_SUPERSET_USERNAME', 'superset')
-    POSTGRESQL_SUPERSET_PASSWORD = os.getenv('POSTGRESQL_SUPERSET_PASSWORD', 'superset123')
+    POSTGRESQL_SUPERSET_USERNAME = os.getenv('POSTGRESQL_SUPERSET_USERNAME')
+    POSTGRESQL_SUPERSET_PASSWORD = os.getenv('POSTGRESQL_SUPERSET_PASSWORD')
 
     # Configuration de la base de données Superset avec variables d'environnement
     SQLALCHEMY_DATABASE_URI = f'postgresql://{POSTGRESQL_SUPERSET_USERNAME}:{POSTGRESQL_SUPERSET_PASSWORD}@superset-postgresql:5432/superset'
