@@ -1,0 +1,56 @@
+# Configuration Superset avec image personnalisée
+image:
+  repository: apache/superset
+  tag: "6.0.0rc2-dev"
+  pullPolicy: IfNotPresent
+
+service:
+  type: NodePort
+  port: 8088
+  nodePort:
+    http: 30089
+  annotations: {}
+
+# Configuration des réplicas
+replicaCount: 1
+
+envFromSecrets: []
+
+# Configuration de l'initialisation avec drivers
+init:
+  adminUser:
+    username: admin
+    firstname: Admin
+    lastname: User
+    email: admin@superset.com
+    password: FormationSupersetAdmin002
+  createAdmin: true
+
+postgresql:
+  enabled: true  # PostgreSQL intégré pour Superset
+  auth:
+    postgresPassword: "superset123"
+    username: "superset"
+    password: "superset123"
+    database: "superset"
+  primary:
+    persistence:
+      enabled: true
+      size: 1Gi
+
+extraSecretEnv:
+  SUPERSET_SECRET_KEY: your-secret-key-change-in-production
+
+# Configuration Ingress (désactivé par défaut)
+ingress:
+  enabled: false
+
+configOverrides:
+  superset_config.py: |
+    import os
+
+    # Configuration de base
+    SECRET_KEY = os.environ.get('SUPERSET_SECRET_KEY', 'your-secret-key-change-in-production')
+
+    # Configuration de la base de données Superset (PostgreSQL intégré)
+    SQLALCHEMY_DATABASE_URI = 'postgresql://superset:superset123@superset-postgresql:5432/superset'

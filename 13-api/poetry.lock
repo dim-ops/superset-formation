@@ -14,7 +14,7 @@ files = [
 
 [package.dependencies]
 soupsieve = ">1.2"
-typing-extensions = ">=5.0.0"
+typing-extensions = ">=4.0.0"
 
 [package.extras]
 cchardet = ["cchardet"]
@@ -221,4 +221,4 @@ zstd = ["zstandard (>=0.18.0)"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10"
-content-hash = "f1d5db90bb5bbd68c30640a4b588e204b809c0c71ef9933fa226a857d8615ff2"
+content-hash = "30a8d08c757d8fca98a70e69f72cc722034887bbfb8fde12eddc8b828e67db1c"

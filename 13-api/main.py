@@ -11,9 +11,9 @@ def get_superset_charts():
     Se connecte à Superset et récupère les charts avec affichage lisible
     """
     # Configuration
-    superset_host = '51.68.16.250:30088'
+    superset_host = '51.68.16.250:30089'
     username = 'admin'
-    password = 'admin'
+    password = 'FormationSupersetAdmin002'
 
     print(f"🚀 Connexion à Superset sur {superset_host}")
     print(f"Utilisateur: {username}")
