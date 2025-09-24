@@ -8,7 +8,6 @@ USER root
 
 # Installation des dépendances système nécessaires
 RUN apt-get update && apt-get install -y \
-    libldap2-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Installation des drivers avec versions spécifiées

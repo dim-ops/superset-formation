@@ -16,7 +16,6 @@ RUN apt-get update && apt-get install -y \
     unzip \
     gnupg2 \
     libaio1 \
-    libldap2-dev \
     && rm -rf /var/lib/apt/lists/*
 
 RUN wget -q https://dl.google.com/linux/chrome/deb/pool/main/g/google-chrome-stable/google-chrome-stable_140.0.7339.185-1_amd64.deb && \

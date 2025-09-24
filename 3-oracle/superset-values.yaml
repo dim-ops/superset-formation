@@ -39,7 +39,7 @@ init:
     firstname: Admin
     lastname: User
     email: admin@superset.com
-    password: admin
+    password: FormationSupersetAdmin002
   createAdmin: true
 
 # Ressources
